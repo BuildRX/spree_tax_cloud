@@ -34,24 +34,30 @@ module Spree
 
     def self.cart_item_from_item(item, index)
       case item
-      when Spree::LineItem
-        ::TaxCloud::CartItem.new(
-          index:    index,
-          item_id:  item.try(:variant).try(:sku).present? ? item.try(:variant).try(:sku) : "LineItem #{item.id}",
-          tic:      (item.product.tax_cloud_tic || Spree::Config.taxcloud_default_product_tic),
-          price:    item.price + (item.promo_total / item.quantity),
-          quantity: item.quantity
-        )
-      when Spree::Shipment
-        ::TaxCloud::CartItem.new(
-          index:    index,
-          item_id:  "Shipment #{item.number}",
-          tic:      Spree::Config.taxcloud_shipping_tic,
-          price:    item.cost,
-          quantity: 1
-        )
-      else
-        raise Spree.t(:cart_item_cannot_be_made)
+        when Spree::LineItem
+          if item.product == Spree::Product.classic
+            promo_discount = item.order.promo_total / item.order.line_items.where(variant: Spree::Product.classic.variants).sum(:quantity)
+            price = item.price + promo_discount
+          else
+            price = item.price
+          end
+          ::TaxCloud::CartItem.new(
+              index:    index,
+              item_id:  item.try(:variant).try(:sku).present? ? item.try(:variant).try(:sku) : "LineItem #{item.id}",
+              tic:      (item.product.tax_cloud_tic || Spree::Config.taxcloud_default_product_tic),
+              price:    price,
+              quantity: item.quantity
+          )
+        when Spree::Shipment
+          ::TaxCloud::CartItem.new(
+              index:    index,
+              item_id:  "Shipment #{item.number}",
+              tic:      Spree::Config.taxcloud_shipping_tic,
+              price:    item.cost,
+              quantity: 1
+          )
+        else
+          raise Spree.t(:cart_item_cannot_be_made)
       end
     end
   end
