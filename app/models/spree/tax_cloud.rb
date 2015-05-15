@@ -14,7 +14,7 @@ module Spree
 
       index = -1 # array is zero-indexed
       # Prepare line_items for lookup
-      order.line_items.each { |line_item| transaction.cart_items << cart_item_from_item(line_item, index += 1) }
+      order.line_items.where('quantity > 0').each { |line_item| transaction.cart_items << cart_item_from_item(line_item, index += 1) }
       # Prepare shipments for lookup
       order.shipments.each { |shipment| transaction.cart_items << cart_item_from_item(shipment, index += 1) }
       transaction
@@ -44,7 +44,7 @@ module Spree
           end
           ::TaxCloud::CartItem.new(
               index:    index,
-              item_id:  item.try(:variant).try(:sku).present? ? item.try(:variant).try(:sku) : "LineItem #{item.id}",
+              item_id:  "LineItem #{item.id}",
               tic:      (item.product.tax_cloud_tic || Spree::Config.taxcloud_default_product_tic),
               price:    price,
               quantity: item.quantity
