@@ -32,38 +32,42 @@ module Spree
     private
 
     def tax_for_item(item)
-      order = item.order
-      item_address = order.ship_address || order.billing_address
-      # We can't calculate tax when we don't have a destination address and
-      # If the order is outside our jurisdiction, then return 0
-      return 0 if item_address.nil? || !calculable.zone.include?(item_address) || item.price == 0
-
-      # Cache will expire if the order, any of its line items, or any of its shipments change.
-      # When the cache expires, we will need to make another API call to TaxCloud.
-      Rails.cache.fetch(["TaxCloudRatesForItem", cache_key(item)], expires_in: 1.second) do
-        # In the case of a cache miss, we recompute the amounts for _all_ the LineItems and Shipments for this Order.
-        # TODO An ideal implementation will break the order down by Shipments / Packages
-        # and use the actual StockLocation address for each separately, and create Adjustments
-        # for the Shipments to reflect tax on shipping.
-        transaction = Spree::TaxCloud.transaction_from_order order
-        lookup_cart_items = transaction.lookup.cart_items
-
-        # Now we will loop back through the items and assign them amounts from the lookup.
-        # This inefficient method is due to the fact that item_id isn't preserved in the lookup.
-        # TODO There may be a way to refactor this,
-        # possibly by overriding the TaxCloud::Responses::Lookup model
-        # or the CartItems model.
-        index = -1 # array is zero-indexed
-        # Retrieve line_items from lookup
-        order.line_items.each do |line_item|
-          Rails.cache.write(["TaxCloudRatesForItem", cache_key(line_item)], (lookup_cart_items[index += 1].try(:tax_amount) || 0), expires_in: 1.second)
+      begin
+        order = item.order
+        item_address = order.ship_address || order.billing_address
+        # We can't calculate tax when we don't have a destination address and
+        # If the order is outside our jurisdiction, then return 0
+        return 0 if item_address.nil? || !calculable.zone.include?(item_address) || item.price == 0
+  
+        # Cache will expire if the order, any of its line items, or any of its shipments change.
+        # When the cache expires, we will need to make another API call to TaxCloud.
+        Rails.cache.fetch(["TaxCloudRatesForItem", cache_key(item)], expires_in: 1.second) do
+          # In the case of a cache miss, we recompute the amounts for _all_ the LineItems and Shipments for this Order.
+          # TODO An ideal implementation will break the order down by Shipments / Packages
+          # and use the actual StockLocation address for each separately, and create Adjustments
+          # for the Shipments to reflect tax on shipping.
+          transaction = Spree::TaxCloud.transaction_from_order order
+          lookup_cart_items = transaction.lookup.cart_items
+  
+          # Now we will loop back through the items and assign them amounts from the lookup.
+          # This inefficient method is due to the fact that item_id isn't preserved in the lookup.
+          # TODO There may be a way to refactor this,
+          # possibly by overriding the TaxCloud::Responses::Lookup model
+          # or the CartItems model.
+          index = -1 # array is zero-indexed
+          # Retrieve line_items from lookup
+          order.line_items.each do |line_item|
+            Rails.cache.write(["TaxCloudRatesForItem", cache_key(line_item)], (lookup_cart_items[index += 1].try(:tax_amount) || 0), expires_in: 1.second)
+          end
+          order.shipments.each do |shipment|
+            Rails.cache.write(["TaxCloudRatesForItem", cache_key(shipment)], (lookup_cart_items[index += 1].try(:tax_amount) || 0), expires_in: 1.second)
+          end
+  
+          # Lastly, return the particular rate that we were initially looking for
+          return Rails.cache.read(["TaxCloudRatesForItem", cache_key(item)])
+        rescue Exception
+          return 0
         end
-        order.shipments.each do |shipment|
-          Rails.cache.write(["TaxCloudRatesForItem", cache_key(shipment)], (lookup_cart_items[index += 1].try(:tax_amount) || 0), expires_in: 1.second)
-        end
-
-        # Lastly, return the particular rate that we were initially looking for
-        Rails.cache.read(["TaxCloudRatesForItem", cache_key(item)])
       end
     end
 
