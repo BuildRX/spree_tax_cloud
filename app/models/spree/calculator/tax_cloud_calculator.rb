@@ -65,9 +65,9 @@ module Spree
   
           # Lastly, return the particular rate that we were initially looking for
           return Rails.cache.read(["TaxCloudRatesForItem", cache_key(item)])
-        rescue Exception
-          return 0
         end
+      rescue Exception
+        return 0
       end
     end
 
