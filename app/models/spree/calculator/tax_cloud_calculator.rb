@@ -56,10 +56,10 @@ module Spree
         index = -1 # array is zero-indexed
         # Retrieve line_items from lookup
         order.line_items.each do |line_item|
-          Rails.cache.write(["TaxCloudRatesForItem", cache_key(line_item)], lookup_cart_items[index += 1].tax_amount, expires_in: 1.second)
+          Rails.cache.write(["TaxCloudRatesForItem", cache_key(line_item)], (lookup_cart_items[index += 1].try(:tax_amount) || 0), expires_in: 1.second)
         end
         order.shipments.each do |shipment|
-          Rails.cache.write(["TaxCloudRatesForItem", cache_key(shipment)], lookup_cart_items[index += 1].tax_amount, expires_in: 1.second)
+          Rails.cache.write(["TaxCloudRatesForItem", cache_key(shipment)], (lookup_cart_items[index += 1].try(:tax_amount) || 0), expires_in: 1.second)
         end
 
         # Lastly, return the particular rate that we were initially looking for
