@@ -35,13 +35,9 @@ module Spree
     def self.cart_item_from_item(item, index)
       case item
         when Spree::LineItem
-          if item.product == Spree::Product.classic && item.order.line_items.where(variant: Spree::Product.classic.variants).sum(:quantity) > 0
-            promo_discount = item.order.promo_total / item.order.line_items.where(variant: Spree::Product.classic.variants).sum(:quantity)
-            price = item.price + promo_discount
-            price = [price, 0].max
-          else
-            price = item.price
-          end
+          promo_discount = item.order.promo_total / item.order.line_items.sum(:quantity) #promo_discount is a negative number representing the discount
+          price = item.price + promo_discount
+          price = [price, 0].max
           ::TaxCloud::CartItem.new(
               index:    index,
               item_id:  "LineItem #{item.id}",
